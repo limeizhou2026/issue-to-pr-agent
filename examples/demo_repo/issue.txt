@@ -1,0 +1,5 @@
+Discount calculation returns a wildly wrong (negative) price
+apply_discount(100, 20) is supposed to apply a 20% discount and return 80.
+Instead it returns -1900. It looks like `percent` is being treated as a raw
+multiplier instead of a percentage — it needs to be divided by 100 before
+being applied.
