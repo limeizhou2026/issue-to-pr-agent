@@ -26,7 +26,14 @@ def _clone_demo_repo(tmp_path) -> Path:
     with repo.config_writer() as cfg:
         cfg.set_value("user", "name", "Test User")
         cfg.set_value("user", "email", "test@example.com")
-    repo.index.add([str(p.relative_to(work)) for p in work.rglob("*") if p.is_file()])
+    # Skip git's own metadata: newer GitPython refuses to stage paths under .git/.
+    repo.index.add(
+        [
+            str(p.relative_to(work))
+            for p in work.rglob("*")
+            if p.is_file() and ".git" not in p.relative_to(work).parts
+        ]
+    )
     repo.index.commit("initial commit")
 
     return work

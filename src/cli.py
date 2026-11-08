@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 from src.agent import build_graph
 from src.llm import ClaudePlanner
 from src.state import initial_state
+from src.tools import repo_tools
 from src.tools.github_tools import fetch_issue, open_pull_request
 
 
@@ -71,7 +72,22 @@ def load_issue(args: argparse.Namespace) -> tuple[str, str]:
     )
 
 
+def require_test_runner(repo_path: str) -> None:
+    """
+    Fail fast, before any model call or file edit, if the repo has no test
+    runner the agent recognizes. Without one, every fix attempt would be
+    reported as failing, wasting API calls and leaving unverified edits behind.
+    """
+    if repo_tools.detect_test_command(repo_path) is None:
+        raise SystemExit(
+            f"No supported test runner found in {repo_path!r} (looked for "
+            f"{', '.join(repo_tools.SUPPORTED_MARKERS)}). The agent needs a way "
+            "to verify its fixes, so it will not run."
+        )
+
+
 def run(args: argparse.Namespace) -> int:
+    require_test_runner(args.repo)
     issue_title, issue_body = load_issue(args)
 
     graph = build_graph(ClaudePlanner())
