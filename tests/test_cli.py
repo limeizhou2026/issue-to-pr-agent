@@ -1,5 +1,6 @@
 import pytest
 
+from src import cli
 from src.cli import load_issue, parse_args
 
 
@@ -36,3 +37,23 @@ def test_no_issue_source_at_all_exits():
 def test_allow_pr_defaults_to_false():
     args = parse_args(["--repo", "/tmp/repo", "--issue-title", "t", "--issue-body", "b"])
     assert args.allow_pr is False
+
+
+def test_run_exits_before_any_model_call_when_repo_has_no_test_runner(tmp_path, monkeypatch):
+    (tmp_path / "main.go").write_text("package main\n")  # source code, but no go.mod
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("the model must not be called when fixes can't be verified")
+
+    monkeypatch.setattr(cli, "ClaudePlanner", fail_if_called)
+    args = parse_args(["--repo", str(tmp_path), "--issue-title", "t", "--issue-body", "b"])
+
+    with pytest.raises(SystemExit, match="No supported test runner"):
+        cli.run(args)
+
+    assert (tmp_path / "main.go").read_text() == "package main\n"
+
+
+def test_require_test_runner_passes_when_a_marker_exists(tmp_path):
+    (tmp_path / "go.mod").write_text("module example\n")
+    cli.require_test_runner(str(tmp_path))  # does not raise

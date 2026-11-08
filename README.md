@@ -49,8 +49,11 @@ Issue (title + body)
    the sandbox.
 3. **Test** — run the repo's own test suite via a command chosen from a
    fixed allowlist based on which project files exist (`pytest.ini` /
-   `pyproject.toml` → pytest, `package.json` → `npm test`) — never a command
-   built from LLM or issue text.
+   `pyproject.toml` → pytest, `package.json` → `npm test`, `go.mod` →
+   `go test`, `pom.xml` / `build.gradle` → Maven / Gradle, `.rspec` /
+   `Rakefile` → RSpec / Rake) — never a command built from LLM or issue
+   text. If none of these exist, the CLI stops before calling the model,
+   since it would have no way to verify a fix.
 4. **Retry or stop** — if tests fail and iterations remain, go back to step
    2 with the failure output as feedback. Otherwise stop.
 5. **Open a PR** — a single action taken once, outside the retry loop, after
@@ -155,7 +158,7 @@ ruff check .
 pytest -v
 ```
 
-34 tests, all deterministic (no real API key or network access required):
+44 tests, all deterministic (no real API key or network access required):
 sandbox-escape attempts (`tests/test_repo_tools.py`), the retry/feedback/
 give-up control flow (`tests/test_agent.py`), the dry-run/real-push branches
 of the GitHub tools including a real push to a local bare repo
@@ -176,5 +179,5 @@ src/
     repo_tools.py    Sandboxed file I/O + the test runner
     github_tools.py  fetch_issue, open_pull_request (dry-run gated)
 examples/demo_repo/  A tiny broken repo + issue.txt, for running the agent without a GitHub token
-tests/               34 tests covering all of the above
+tests/               44 tests covering all of the above
 ```

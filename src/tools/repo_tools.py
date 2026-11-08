@@ -99,11 +99,22 @@ class TestResult:
 # truncated to whole seconds, file size), so two distinct fixes with the
 # same byte length written in the same second are indistinguishable from
 # "unchanged" and the *stale* cached bytecode silently runs instead.
+#
+# Every language in agent.SOURCE_EXTENSIONS should have at least one entry
+# here; otherwise the agent could edit files it has no way to verify.
 _TEST_RUNNERS: list[tuple[str, list[str]]] = [
     ("pytest.ini", ["python3", "-B", "-m", "pytest", "-q"]),
     ("pyproject.toml", ["python3", "-B", "-m", "pytest", "-q"]),
     ("package.json", ["npm", "test", "--silent"]),
+    ("go.mod", ["go", "test", "./..."]),
+    ("pom.xml", ["mvn", "-q", "test"]),
+    ("build.gradle", ["gradle", "test", "-q"]),
+    ("build.gradle.kts", ["gradle", "test", "-q"]),
+    (".rspec", ["bundle", "exec", "rspec"]),
+    ("Rakefile", ["bundle", "exec", "rake", "test"]),
 ]
+
+SUPPORTED_MARKERS = tuple(marker for marker, _ in _TEST_RUNNERS)
 
 
 def detect_test_command(repo_root: str | Path) -> list[str] | None:
@@ -122,8 +133,8 @@ def run_tests(repo_root: str | Path, timeout: int = 120) -> TestResult:
         return TestResult(
             passed=False,
             command="<none>",
-            output="No recognized test runner found (looked for pytest.ini, "
-                   "pyproject.toml, package.json).",
+            output="No recognized test runner found (looked for "
+                   f"{', '.join(SUPPORTED_MARKERS)}).",
         )
 
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
@@ -144,6 +155,14 @@ def run_tests(repo_root: str | Path, timeout: int = 120) -> TestResult:
             passed=False,
             command=" ".join(command),
             output=f"Test run timed out after {timeout}s.",
+        )
+    except FileNotFoundError:
+        # The marker file exists, but the tool itself (go, mvn, bundle, ...)
+        # isn't installed on this machine.
+        return TestResult(
+            passed=False,
+            command=" ".join(command),
+            output=f"Test runner {command[0]!r} is not installed or not on PATH.",
         )
 
     output = (proc.stdout + proc.stderr)[-MAX_READ_BYTES:]

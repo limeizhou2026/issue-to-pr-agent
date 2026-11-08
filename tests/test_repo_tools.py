@@ -88,6 +88,34 @@ class TestDetectTestCommand:
     def test_returns_none_when_no_runner_recognized(self, tmp_path):
         assert repo_tools.detect_test_command(tmp_path) is None
 
+    @pytest.mark.parametrize(
+        "marker, expected_tool",
+        [
+            ("go.mod", "go"),
+            ("pom.xml", "mvn"),
+            ("build.gradle", "gradle"),
+            ("build.gradle.kts", "gradle"),
+            (".rspec", "bundle"),
+            ("Rakefile", "bundle"),
+        ],
+    )
+    def test_detects_go_java_and_ruby_runners(self, tmp_path, marker, expected_tool):
+        (tmp_path / marker).write_text("")
+        assert repo_tools.detect_test_command(tmp_path)[0] == expected_tool
+
+    def test_every_source_language_has_a_test_runner(self):
+        """Guards against reading/editing a language the agent can't verify."""
+        from src.agent import SOURCE_EXTENSIONS
+
+        tools = {command[0] for _, command in repo_tools._TEST_RUNNERS}
+        language_to_tool = {
+            ".py": "python3", ".ts": "npm", ".tsx": "npm", ".js": "npm", ".jsx": "npm",
+            ".go": "go", ".java": "mvn", ".rb": "bundle",
+        }
+        for ext in SOURCE_EXTENSIONS:
+            assert ext in language_to_tool, f"no known test runner mapping for {ext}"
+            assert language_to_tool[ext] in tools, f"{ext} files have no test runner"
+
 
 class TestRunTests:
     def test_runs_a_passing_pytest_suite(self, tmp_path):
@@ -150,3 +178,14 @@ class TestRunTests:
 
         assert result.passed is False
         assert "timed out" in result.output
+
+    def test_reports_a_missing_tool_without_raising(self, tmp_path, monkeypatch):
+        (tmp_path / "go.mod").write_text("module example\n")
+        monkeypatch.setattr(
+            repo_tools, "_TEST_RUNNERS", [("go.mod", ["definitely-not-an-installed-tool-xyz"])]
+        )
+
+        result = repo_tools.run_tests(tmp_path)
+
+        assert result.passed is False
+        assert "not installed" in result.output
